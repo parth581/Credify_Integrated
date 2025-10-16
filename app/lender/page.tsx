@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { LenderSidebar } from "@/components/lender/sidebar"
 import { RazorpayPayment } from "@/components/razorpay-payment"
@@ -7,32 +8,73 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { DonutChart } from "@/components/charts/donut"
-import { BarBasicChart } from "@/components/charts/bar-basic"
 import { Badge } from "@/components/ui/badge"
 import { BackButton } from "@/components/ui/back-button"
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts"
 
-const marketplace = [
-  { id: "BRW-1024", amount: 3000, purpose: "Bike for delivery", rate: 12, duration: 12, distance: "2.1 km" },
-  { id: "BRW-2048", amount: 8500, purpose: "Coffee cart expansion", rate: 14, duration: 18, distance: "5.3 km" },
-  { id: "BRW-4096", amount: 12000, purpose: "Home renovation", rate: 11, duration: 24, distance: "1.8 km" },
-]
+interface Loan {
+  id: number
+  amount: number
+  purpose: string
+  rate: number
+  duration: number
+  distance?: string
+  bids: { time: string; rate: number }[]
+  isBusinessLoan?: boolean
+  category?: string
+  status: string
+  createdAt: string
+}
 
-const portfolioStats = [
-  { label: "Total Investment", value: "$27,300" },
-  { label: "Active Loans", value: "12" },
-  { label: "Avg Interest Rate", value: "12.7%" },
-  { label: "Total Returns", value: "$3,420" },
-]
-
+// -------------------- Marketplace Section --------------------
 function MarketplaceSection() {
-  const handleFundingSuccess = (paymentId: string, loanId: string, amount: number) => {
-    console.log("Funding successful:", { paymentId, loanId, amount })
-    alert(`Loan funded successfully! Payment ID: ${paymentId}\nLoan ID: ${loanId}\nAmount: $${amount}`)
+  const [loans, setLoans] = useState<Loan[]>([])
+  const [bidRates, setBidRates] = useState<{ [key: number]: string }>({})
+
+  // Load loans from localStorage
+  useEffect(() => {
+    const savedLoans = localStorage.getItem("loanApplications")
+    if (savedLoans) {
+      const parsedLoans: Loan[] = JSON.parse(savedLoans).map((loan: any) => ({
+        ...loan,
+        duration: Number(loan.duration),
+        bids: loan.bids || [],
+        distance: loan.distance || "N/A",
+      }))
+      setLoans(parsedLoans)
+    }
+  }, [])
+
+  const handleBid = (loanId: number) => {
+    const newRate = parseFloat(bidRates[loanId])
+    if (!newRate || newRate <= 0) {
+      alert("Please enter a valid bid rate.")
+      return
+    }
+
+    const updatedLoans = loans.map((loan) => {
+      if (loan.id === loanId && newRate < loan.rate) {
+        return {
+          ...loan,
+          rate: newRate,
+          bids: [...loan.bids, { time: new Date().toLocaleTimeString(), rate: newRate }],
+        }
+      }
+      return loan
+    })
+
+    setLoans(updatedLoans)
+    setBidRates((prev) => ({ ...prev, [loanId]: "" }))
+
+    // Save updated loans back to localStorage
+    localStorage.setItem("loanApplications", JSON.stringify(updatedLoans))
+  }
+
+  const handleFundingSuccess = (paymentId: string, loanId: number, amount: number) => {
+    alert(`Loan funded successfully!\nPayment ID: ${paymentId}\nLoan ID: ${loanId}\nAmount: $${amount}`)
   }
 
   const handleFundingError = (error: string) => {
-    console.error("Funding failed:", error)
     alert(`Funding failed: ${error}`)
   }
 
@@ -41,9 +83,12 @@ function MarketplaceSection() {
       <header className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
         <h1 className="text-2xl font-semibold">Loan Application Marketplace</h1>
         <div className="flex flex-wrap items-center gap-2">
-          <Input placeholder="Search by location" className="w-40" />
+          <Input
+            placeholder="Search by location"
+            className="w-40 bg-violet-50 border-violet-300 text-violet-900"
+          />
           <Select>
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-40 bg-violet-50 border-violet-300 text-violet-900">
               <SelectValue placeholder="Date range" />
             </SelectTrigger>
             <SelectContent>
@@ -53,7 +98,7 @@ function MarketplaceSection() {
             </SelectContent>
           </Select>
           <Select>
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="w-40 bg-violet-50 border-violet-300 text-violet-900">
               <SelectValue placeholder="Loan amount" />
             </SelectTrigger>
             <SelectContent>
@@ -66,36 +111,77 @@ function MarketplaceSection() {
       </header>
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {marketplace.map((m) => (
-          <Card key={m.id} className="bg-card transition-all hover:shadow-md hover:ring-1 hover:ring-primary/25">
+        {loans.map((loan) => (
+          <Card key={loan.id.toString()} className="bg-card transition-all hover:shadow-md hover:ring-1 hover:ring-primary/25">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                <span>{m.purpose}</span>
-                <Badge variant="secondary">{m.distance}</Badge>
+                <span>{loan.purpose}</span>
+                <Badge variant="secondary">{loan.distance}</Badge>
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <div className="text-sm text-muted-foreground">Borrower ID: {m.id}</div>
+            <CardContent className="space-y-3">
+              <div className="text-sm text-muted-foreground">Borrower ID: {loan.id}</div>
               <div className="grid grid-cols-3 gap-3 text-sm">
                 <div>
                   <div className="text-muted-foreground">Amount</div>
-                  <div className="font-medium">${m.amount.toLocaleString()}</div>
+                  <div className="font-medium">${loan.amount.toLocaleString()}</div>
                 </div>
                 <div>
                   <div className="text-muted-foreground">Rate</div>
-                  <div className="font-medium">{m.rate}%</div>
+                  <div className="font-medium">{loan.rate}%</div>
                 </div>
                 <div>
                   <div className="text-muted-foreground">Duration</div>
-                  <div className="font-medium">{m.duration} mo</div>
+                  <div className="font-medium">{loan.duration} mo</div>
                 </div>
               </div>
+
+              {/* Bid Input */}
+              <div className="flex items-center gap-2 pt-2">
+                <Input
+                  type="number"
+                  step="0.1"
+                  placeholder="Bid rate (%)"
+                  value={bidRates[loan.id] || ""}
+                  onChange={(e) =>
+                    setBidRates((prev) => ({ ...prev, [loan.id]: e.target.value }))
+                  }
+                  className="w-24 bg-violet-50 border-violet-300 text-violet-900"
+                />
+                <Button
+                  onClick={() => handleBid(loan.id)}
+                  variant="secondary"
+                  className="bg-violet-200 text-violet-900 hover:bg-violet-300"
+                >
+                  Bid
+                </Button>
+              </div>
+
+              {/* Rate Trend Graph */}
+              <div className="h-40 pt-2">
+                {loan.bids.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={loan.bids}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="time" />
+                      <YAxis domain={["auto", "auto"]} />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="rate" stroke="#A085FF" dot />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-sm text-muted-foreground text-center py-16">
+                    No bids yet
+                  </div>
+                )}
+              </div>
+
               <div className="flex gap-2 pt-2">
                 <Button variant="outline">View Details</Button>
                 <RazorpayPayment
-                  amount={m.amount}
+                  amount={loan.amount}
                   currency="USD"
-                  onSuccess={(paymentId) => handleFundingSuccess(paymentId, m.id, m.amount)}
+                  onSuccess={(paymentId) => handleFundingSuccess(paymentId, loan.id, loan.amount)}
                   onError={handleFundingError}
                   className="bg-primary text-primary-foreground hover:opacity-90"
                 >
@@ -110,7 +196,15 @@ function MarketplaceSection() {
   )
 }
 
+// -------------------- Portfolio Section --------------------
 function PortfolioSection() {
+  const portfolioStats = [
+    { label: "Total Investment", value: "$27,300" },
+    { label: "Active Loans", value: "12" },
+    { label: "Avg Interest Rate", value: "12.7%" },
+    { label: "Total Returns", value: "$3,420" },
+  ]
+
   return (
     <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
       <Card className="lg:col-span-3">
@@ -126,85 +220,11 @@ function PortfolioSection() {
           ))}
         </CardContent>
       </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Loan Status</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DonutChart
-            data={[
-              { name: "Active", value: 12, color: "var(--color-chart-1)" },
-              { name: "Completed", value: 8, color: "var(--color-chart-3)" },
-            ]}
-          />
-        </CardContent>
-      </Card>
-
-      <Card className="lg:col-span-2">
-        <CardHeader>
-          <CardTitle>Monthly EMI Collections</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <BarBasicChart
-            data={[
-              { name: "Jan", value: 1200 },
-              { name: "Feb", value: 1400 },
-              { name: "Mar", value: 1600 },
-              { name: "Apr", value: 1800 },
-              { name: "May", value: 1500 },
-              { name: "Jun", value: 1900 },
-            ]}
-            color="var(--color-chart-1)"
-          />
-        </CardContent>
-      </Card>
-
-      <Card className="lg:col-span-3">
-        <CardHeader>
-          <CardTitle>Active Loans</CardTitle>
-        </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-muted-foreground">
-                <th className="px-3 py-2">Borrower ID</th>
-                <th className="px-3 py-2">Amount Repaid</th>
-                <th className="px-3 py-2">Next EMI Date</th>
-                <th className="px-3 py-2">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { id: "BRW-1024", repaid: "$1,200", next: "2025-10-15", status: "On Track" },
-                { id: "BRW-2048", repaid: "$5,600", next: "2025-10-20", status: "Delayed" },
-                { id: "BRW-4096", repaid: "$9,300", next: "2025-10-10", status: "On Track" },
-              ].map((row) => (
-                <tr key={row.id} className="border-t border-border/70">
-                  <td className="px-3 py-2">{row.id}</td>
-                  <td className="px-3 py-2">{row.repaid}</td>
-                  <td className="px-3 py-2">{row.next}</td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={
-                        row.status === "On Track"
-                          ? "rounded-md bg-primary px-2 py-1 text-xs text-primary-foreground"
-                          : "rounded-md bg-destructive px-2 py-1 text-xs text-destructive-foreground"
-                      }
-                    >
-                      {row.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
     </section>
   )
 }
 
+// -------------------- Payments Section --------------------
 function PaymentsSection() {
   return (
     <section className="space-y-4">
@@ -222,11 +242,7 @@ function PaymentsSection() {
               </tr>
             </thead>
             <tbody>
-              {[
-                { date: "2025-09-30", amount: "$320", status: "Settled" },
-                { date: "2025-08-31", amount: "$305", status: "Settled" },
-                { date: "2025-07-31", amount: "$298", status: "Settled" },
-              ].map((r) => (
+              {[{ date: "2025-09-30", amount: "$320", status: "Settled" }].map((r) => (
                 <tr key={r.date} className="border-t border-border/70">
                   <td className="px-3 py-2">{r.date}</td>
                   <td className="px-3 py-2">{r.amount}</td>
@@ -243,6 +259,7 @@ function PaymentsSection() {
   )
 }
 
+// -------------------- Settings Section --------------------
 function SettingsSection() {
   return (
     <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -261,7 +278,9 @@ function SettingsSection() {
           <CardTitle>Notifications</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="text-sm text-muted-foreground">Email me monthly statements and new opportunities.</div>
+          <div className="text-sm text-muted-foreground">
+            Email me monthly statements and new opportunities.
+          </div>
           <Button variant="outline">Update Preferences</Button>
         </CardContent>
       </Card>
@@ -269,6 +288,7 @@ function SettingsSection() {
   )
 }
 
+// -------------------- Main Lender Dashboard --------------------
 export default function LenderDashboard() {
   const sp = useSearchParams()
   const tab = sp.get("tab")
@@ -276,10 +296,10 @@ export default function LenderDashboard() {
     tab === "portfolio"
       ? "My Portfolio"
       : tab === "payments"
-        ? "Payments"
-        : tab === "settings"
-          ? "Settings"
-          : "Marketplace"
+      ? "Payments"
+      : tab === "settings"
+      ? "Settings"
+      : "Marketplace"
 
   return (
     <div className="theme-lender dark">

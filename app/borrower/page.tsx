@@ -1,6 +1,7 @@
 "use client"
 
 import { useSearchParams } from "next/navigation"
+import { useState, useEffect } from "react"
 import { BorrowerSidebar } from "@/components/borrower/sidebar"
 import { ActiveLoanCard } from "@/components/borrower/active-loan-card"
 import { NewLoanDialog } from "@/components/borrower/new-loan-dialog"
@@ -9,15 +10,94 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { BackButton } from "@/components/ui/back-button"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts"
 
+interface Loan {
+  id: number
+  amount: number
+  purpose: string
+  duration: string
+  rate: number
+  isBusinessLoan: boolean
+  category: string
+  bids: any[]
+  status: string
+  createdAt: string
+}
+
+// -------------------- Overview Component --------------------
 function Overview() {
+  const [loans, setLoans] = useState<Loan[]>([])
+
+  // Load loans from localStorage
+  useEffect(() => {
+    const savedLoans = localStorage.getItem("loanApplications")
+    if (savedLoans) setLoans(JSON.parse(savedLoans))
+  }, [])
+
+  // Refresh callback after new loan submission
+  const refreshLoans = () => {
+    const savedLoans = localStorage.getItem("loanApplications")
+    if (savedLoans) setLoans(JSON.parse(savedLoans))
+  }
+
   return (
     <div className="space-y-6">
       <header className="flex items-center justify-between">
         <div className="text-lg font-semibold">Hello, Alex!</div>
-        <NewLoanDialog />
+        <NewLoanDialog onLoanSubmitted={refreshLoans} />
       </header>
+
       <ActiveLoanCard />
+
+      {/* New Section: Borrower's Loan Applications */}
+      <section>
+        <div className="mb-2 text-sm font-medium">Your Loan Applications</div>
+        <div className="grid gap-4">
+          {loans.length === 0 && <p>No loans submitted yet.</p>}
+          {loans.map((loan) => (
+            <Card key={loan.id} className="p-4">
+              <p>
+                <strong>Amount:</strong> ₹{loan.amount} | <strong>Purpose:</strong> {loan.purpose}
+              </p>
+              <p>
+                <strong>Duration:</strong> {loan.duration} months | <strong>Type:</strong>{" "}
+                {loan.isBusinessLoan ? `Business (${loan.category})` : "Private"} | <strong>Max Rate:</strong> {loan.rate}%
+              </p>
+              <p>
+                <strong>Status:</strong> {loan.status} | <strong>Bids:</strong> {loan.bids.length}
+              </p>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      {/* Interest Rate Trends */}
+      <section>
+        <div className="mb-2 text-sm font-medium">Interest Rate Trends</div>
+        <Card className="transition-all hover:shadow-md hover:ring-1 hover:ring-primary/25">
+          <CardContent className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={[
+                  { time: "Start", rate: 14 },
+                  { time: "12:00", rate: 13.5 },
+                  { time: "12:10", rate: 13.2 },
+                  { time: "12:20", rate: 12.8 },
+                ]}
+              >
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="time" />
+                <YAxis domain={["auto", "auto"]} />
+                <Tooltip />
+                <Line type="monotone" dataKey="rate" stroke="#82ca9d" dot />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* Payment History */}
       <section>
         <div className="mb-2 text-sm font-medium">Payment History</div>
         <Card className="transition-all hover:shadow-md hover:ring-1 hover:ring-primary/25">
@@ -55,16 +135,13 @@ function Overview() {
   )
 }
 
+// -------------------- Payments Component --------------------
 function Payments() {
   const handlePaymentSuccess = (paymentId: string) => {
-    console.log("Payment successful with ID:", paymentId)
-    // You can add success notification or redirect logic here
     alert(`Payment successful! Payment ID: ${paymentId}`)
   }
 
   const handlePaymentError = (error: string) => {
-    console.error("Payment failed:", error)
-    // You can add error notification logic here
     alert(`Payment failed: ${error}`)
   }
 
@@ -99,6 +176,7 @@ function Payments() {
   )
 }
 
+// -------------------- Settings Component --------------------
 function Settings() {
   return (
     <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -125,6 +203,7 @@ function Settings() {
   )
 }
 
+// -------------------- Main BorrowerDashboard --------------------
 export default function BorrowerDashboard() {
   const sp = useSearchParams()
   const tab = sp.get("tab")
