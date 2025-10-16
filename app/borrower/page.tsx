@@ -4,7 +4,9 @@ import { useSearchParams } from "next/navigation"
 import { BorrowerSidebar } from "@/components/borrower/sidebar"
 import { ActiveLoanCard } from "@/components/borrower/active-loan-card"
 import { NewLoanDialog } from "@/components/borrower/new-loan-dialog"
+import { RazorpayPayment } from "@/components/razorpay-payment"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { BackButton } from "@/components/ui/back-button"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
@@ -54,6 +56,18 @@ function Overview() {
 }
 
 function Payments() {
+  const handlePaymentSuccess = (paymentId: string) => {
+    console.log("Payment successful with ID:", paymentId)
+    // You can add success notification or redirect logic here
+    alert(`Payment successful! Payment ID: ${paymentId}`)
+  }
+
+  const handlePaymentError = (error: string) => {
+    console.error("Payment failed:", error)
+    // You can add error notification logic here
+    alert(`Payment failed: ${error}`)
+  }
+
   return (
     <section className="space-y-4">
       <Card>
@@ -62,7 +76,14 @@ function Payments() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="text-sm text-muted-foreground">Next EMI: 2025-10-15</div>
-          <Button className="bg-primary text-primary-foreground">Pay Now</Button>
+          <div className="text-sm text-muted-foreground">Amount: ₹220</div>
+          <RazorpayPayment
+            amount={220}
+            currency="INR"
+            onSuccess={handlePaymentSuccess}
+            onError={handlePaymentError}
+            className="bg-primary text-primary-foreground"
+          />
         </CardContent>
       </Card>
       <Card>
@@ -114,6 +135,9 @@ export default function BorrowerDashboard() {
       <div className="flex min-h-screen">
         <BorrowerSidebar active={active} />
         <main className="mx-auto flex-1 space-y-6 p-6">
+          <div>
+            <BackButton />
+          </div>
           {active === "Overview" && <Overview />}
           {active === "Payments" && <Payments />}
           {active === "Settings" && <Settings />}

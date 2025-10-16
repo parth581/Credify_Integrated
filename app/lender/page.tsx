@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation"
 import { LenderSidebar } from "@/components/lender/sidebar"
+import { RazorpayPayment } from "@/components/razorpay-payment"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DonutChart } from "@/components/charts/donut"
 import { BarBasicChart } from "@/components/charts/bar-basic"
 import { Badge } from "@/components/ui/badge"
+import { BackButton } from "@/components/ui/back-button"
 
 const marketplace = [
   { id: "BRW-1024", amount: 3000, purpose: "Bike for delivery", rate: 12, duration: 12, distance: "2.1 km" },
@@ -24,6 +26,16 @@ const portfolioStats = [
 ]
 
 function MarketplaceSection() {
+  const handleFundingSuccess = (paymentId: string, loanId: string, amount: number) => {
+    console.log("Funding successful:", { paymentId, loanId, amount })
+    alert(`Loan funded successfully! Payment ID: ${paymentId}\nLoan ID: ${loanId}\nAmount: $${amount}`)
+  }
+
+  const handleFundingError = (error: string) => {
+    console.error("Funding failed:", error)
+    alert(`Funding failed: ${error}`)
+  }
+
   return (
     <>
       <header className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
@@ -80,7 +92,15 @@ function MarketplaceSection() {
               </div>
               <div className="flex gap-2 pt-2">
                 <Button variant="outline">View Details</Button>
-                <Button className="bg-primary text-primary-foreground hover:opacity-90">Fund Loan</Button>
+                <RazorpayPayment
+                  amount={m.amount}
+                  currency="USD"
+                  onSuccess={(paymentId) => handleFundingSuccess(paymentId, m.id, m.amount)}
+                  onError={handleFundingError}
+                  className="bg-primary text-primary-foreground hover:opacity-90"
+                >
+                  Fund Loan
+                </RazorpayPayment>
               </div>
             </CardContent>
           </Card>
@@ -266,6 +286,9 @@ export default function LenderDashboard() {
       <div className="flex min-h-screen">
         <LenderSidebar active={active} />
         <main className="flex-1 space-y-6 p-6">
+          <div>
+            <BackButton />
+          </div>
           {active === "Marketplace" && <MarketplaceSection />}
           {active === "My Portfolio" && <PortfolioSection />}
           {active === "Payments" && <PaymentsSection />}

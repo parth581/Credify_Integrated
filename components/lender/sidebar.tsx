@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { cn } from "@/lib/utils"
-import { LayoutGrid, Wallet, CreditCard, Settings } from "lucide-react"
+import { LayoutGrid, Wallet, CreditCard, Settings, LogOut } from "lucide-react"
 
 const nav = [
   { href: "/lender", label: "Marketplace", Icon: LayoutGrid },
@@ -35,6 +35,18 @@ export function LenderSidebar({ active = "Marketplace" }: { active?: string }) {
           )
         })}
       </nav>
+      <div className="mt-auto pt-6">
+        <Link
+          href="/"
+          className={cn(
+            "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+            "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+          )}
+        >
+          <LogOut className="h-4 w-4" />
+          Logout
+        </Link>
+      </div>
     </aside>
   )
 }
