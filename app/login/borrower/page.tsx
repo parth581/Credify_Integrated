@@ -22,6 +22,7 @@ export default function BorrowerLoginPage() {
   const [password, setPassword] = useState("")
   const [hasKyc, setHasKyc] = useState(false)
   const [kycInProgress, setKycInProgress] = useState(false)
+  const [kycKey, setKycKey] = useState(0)
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
   const [aadhaarImage, setAadhaarImage] = useState<string | null>(null)
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
@@ -32,11 +33,14 @@ export default function BorrowerLoginPage() {
   const [forgotPasswordEmail, setForgotPasswordEmail] = useState("")
   const [isSendingReset, setIsSendingReset] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const role = "borrower" as const
   const [otpStep, setOtpStep] = useState(false)
   const [isSendingOtp, setIsSendingOtp] = useState(false)
   const [otp, setOtp] = useState("")
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false)
+  // Show video only when stream and ref are ready
+  const [showVideo, setShowVideo] = useState(false)
 
   // ✅ Check email-specific KYC status
   useEffect(() => {
@@ -44,6 +48,18 @@ export default function BorrowerLoginPage() {
       setHasKyc(localStorage.getItem(`kyc:${role}:${email}`) === "true")
     }
   }, [email, role])
+
+  // Attach camera stream to video element when both are ready
+  useEffect(() => {
+    if (showVideo && cameraStream && videoRef.current) {
+      try {
+        videoRef.current.srcObject = cameraStream
+        videoRef.current.play().catch((err) => console.error("Video play error:", err))
+      } catch (err) {
+        console.error("Failed to attach camera stream:", err)
+      }
+    }
+  }, [showVideo, cameraStream])
 
   // ✅ Sign In Logic with Firebase and KYC
   const signIn = async () => {
@@ -212,9 +228,19 @@ export default function BorrowerLoginPage() {
   // ✅ Camera Access
   const startCamera = async () => {
     try {
+      // Stop any existing camera stream first
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((t) => t.stop())
+      }
+      // Clear old captured image
+      setCapturedImage(null)
+      setShowVideo(false)
+      // Start new stream
       const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      // set stream state first, then request rendering of video element
       setCameraStream(stream)
-      if (videoRef.current) videoRef.current.srcObject = stream
+      // show the video element so it mounts; actual attaching/play happens in useEffect above
+      setShowVideo(true)
     } catch (err) {
       console.error("Camera access denied:", err)
       alert("Please allow camera access for KYC.")
@@ -233,7 +259,35 @@ export default function BorrowerLoginPage() {
     ctx.drawImage(video, 0, 0)
     const image = canvas.toDataURL("image/png")
     setCapturedImage(image)
-    cameraStream?.getTracks().forEach((t) => t.stop())
+    setShowVideo(false)
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((t) => t.stop())
+      setCameraStream(null)
+    }
+  }
+
+  // ✅ Reset KYC Flow for Retry (without logging out)
+  const resetKycFlow = () => {
+    console.log("Resetting full KYC state...")
+    // Stop camera stream
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((t) => t.stop())
+    }
+    // Clear all state completely
+    setCapturedImage(null)
+    setAadhaarImage(null)
+    setExtractedAadhaarFace(null)
+    setIsExtractingFace(false)
+    setIsVerifying(false)
+    setCameraStream(null)
+    setShowVideo(false)
+    // Clear file input manually
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
+    }
+    // Force full remount of KYC section
+    setKycKey((prev) => prev + 1)
+    console.log("KYC fully reset")
   }
 
   // ✅ Extract face from Aadhaar using Gemini
@@ -270,11 +324,11 @@ export default function BorrowerLoginPage() {
   const verifyWithHuggingFace = async () => {
     if (!extractedAadhaarFace || !capturedImage) {
       alert("⚠️ Please complete all steps:\n1. Extract face from Aadhaar card\n2. Capture your live image");
-    return;
-  }
+      return;
+    }
 
-  setIsVerifying(true);
-  try {
+    setIsVerifying(true);
+    try {
       console.log("Starting face comparison...");
       
       // Compare faces using InsightFace
@@ -290,13 +344,18 @@ export default function BorrowerLoginPage() {
         console.error("Face comparison failed:", errorMsg);
         
         // Show user-friendly error message
+        let userMessage = "";
         if (errorMsg.includes("Python") || errorMsg.includes("script")) {
-          alert("❌ Configuration Error:\nInsightFace service is not available.\nPlease ensure Python is installed and dependencies are set up.\nSee INSIGHTFACE_SETUP.md for instructions.");
+          userMessage = "❌ Configuration Error:\nInsightFace service is not available.\nPlease ensure Python is installed and dependencies are set up.";
         } else if (errorMsg.includes("No face detected")) {
-          alert(`❌ Verification Failed:\n${errorMsg}\n\nPlease ensure:\n- Both images clearly show your face\n- Good lighting conditions\n- Face is centered and visible\n- Try again`);
+          userMessage = `❌ Verification Failed:\n${errorMsg}\n\nPlease ensure:\n- Both images clearly show your face\n- Good lighting conditions\n- Face is centered and visible`;
         } else {
-          alert(`❌ Verification Failed:\n${errorMsg}\n\nPlease ensure:\n- Both images are clear and show your face\n- Good lighting conditions\n- Try again`);
+          userMessage = `❌ Verification Failed:\n${errorMsg}\n\nPlease ensure:\n- Both images are clear and show your face\n- Good lighting conditions`;
         }
+        
+        alert(userMessage);
+        setIsVerifying(false);
+        resetKycFlow();
         return;
       }
 
@@ -348,15 +407,21 @@ export default function BorrowerLoginPage() {
       } else {
         // Failed - show similarity percentage and helpful message
         alert(
-          `❌ Face Verification Failed\n\nSimilarity Score: ${similarity.toFixed(2)}%\nRequired Threshold: ${threshold}%\n\nTips to improve:\n• Ensure good lighting\n• Face the camera directly\n• Remove glasses/mask if possible\n• Make sure both images show your full face clearly\n\nPlease try again.`,
-          "error"
+          `❌ Face Verification Failed\n\nSimilarity Score: ${similarity.toFixed(2)}%\nRequired Threshold: ${threshold}%\n\nTips to improve:\n• Ensure good lighting\n• Face the camera directly\n• Remove glasses/mask if possible\n• Make sure both images show your full face clearly`
         );
+        setIsVerifying(false);
+        resetKycFlow();
       }
     } catch (error: any) {
       console.error("InsightFace Verification Error:", error);
-      alert(`❌ Verification Error:\n${error.message || "An unexpected error occurred. Please try again later."}\n\nIf this persists, please contact support.`);
-    } finally {
+      alert(`❌ Verification Error:\n${error.message || "An unexpected error occurred. Please try again later."}`);
       setIsVerifying(false);
+      resetKycFlow();
+      useEffect(() => {
+        if (!kycInProgress) {
+          resetKycFlow()
+        }
+      }, [kycInProgress])
     }
   };
 
@@ -534,7 +599,7 @@ export default function BorrowerLoginPage() {
 
       {/* ✅ KYC Flow */}
       {kycInProgress && (
-        <div className="space-y-4">
+        <div className="space-y-4" key={kycKey}>
           <Card>
             <CardContent className="p-6 space-y-4">
               <h2 className="font-medium text-lg">Start KYC Verification</h2>
@@ -543,6 +608,7 @@ export default function BorrowerLoginPage() {
               <div>
                 <p className="text-sm mb-2">Step 1: Upload your Aadhaar photo:</p>
                 <Input
+                  ref={fileInputRef}
                   type="file"
                   accept="image/*"
                   onChange={(e) => {
@@ -564,13 +630,25 @@ export default function BorrowerLoginPage() {
                     alt="Aadhaar"
                       className="mx-auto w-48 h-48 object-cover rounded-lg border"
                   />
-                    <Button
-                      onClick={extractFaceFromAadhaar}
-                      disabled={isExtractingFace}
-                      className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      {isExtractingFace ? "Extracting Face..." : "Step 2: Extract Face from Aadhaar"}
-                    </Button>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        onClick={extractFaceFromAadhaar}
+                        disabled={isExtractingFace}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                      >
+                        {isExtractingFace ? "Extracting Face..." : "Step 2: Extract Face from Aadhaar"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setAadhaarImage(null)
+                          setExtractedAadhaarFace(null)
+                        }}
+                        className="px-3"
+                      >
+                        Change
+                      </Button>
+                    </div>
                   </div>
                 )}
                 {extractedAadhaarFace && (
@@ -591,31 +669,55 @@ export default function BorrowerLoginPage() {
                 <Button onClick={startCamera} disabled={!extractedAadhaarFace}>
                   Access Camera
                 </Button>
-                <div className="flex justify-center mt-2">
-                  {!capturedImage && (
-    <video
-      ref={videoRef}
-      autoPlay
-      className="rounded-lg shadow-md w-full max-w-sm"
-    />
-  )}
-</div>
-                <Button onClick={captureImage} disabled={!cameraStream} className="w-full mt-2">
-  Capture Image
-</Button>
+                {showVideo && cameraStream && !capturedImage && (
+                  <div className="mt-4 flex justify-center">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      muted
+                      playsInline
+                      style={{ 
+                        width: "100%", 
+                        maxWidth: "400px", 
+                        height: "300px", 
+                        backgroundColor: "#000000",
+                        borderRadius: "8px",
+                        objectFit: "cover",
+                        display: "block"
+                      }}
+                    />
+                  </div>
+                )}
+                <Button 
+                  onClick={captureImage} 
+                  disabled={!cameraStream} 
+                  className="w-full mt-2"
+                >
+                  Capture Image
+                </Button>
 
-              {capturedImage && (
+                {capturedImage && (
                   <div className="text-center mt-3">
                     <p className="text-sm font-medium mb-2">Captured Image:</p>
-                  <img
-                    src={capturedImage}
-                    alt="Captured Face"
+                    <img
+                      src={capturedImage}
+                      alt="Captured Face"
                       className="mx-auto w-32 h-32 object-cover rounded-full border-2 border-blue-500"
-                  />
-                </div>
-              )}
+                    />
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setCapturedImage(null)
+                      }}
+                      className="w-full mt-2"
+                    >
+                      Recapture Image
+                    </Button>
+                  </div>
+                )}
               </div>
 
+              {/* Verification Button */}
               <Button
                 onClick={verifyWithHuggingFace}
                 disabled={isVerifying || !capturedImage || !extractedAadhaarFace}
