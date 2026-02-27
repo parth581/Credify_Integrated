@@ -85,7 +85,7 @@ function MarketplaceSection() {
         <div className="flex flex-wrap items-center gap-2">
           <Input
             placeholder="Search by location"
-            className="w-40 bg-violet-50 border-violet-300 text-violet-900"
+            className="w-40 bg-purple-50 border-violet-300 text-violet-900"
           />
           <Select>
             <SelectTrigger className="w-40 bg-violet-50 border-violet-300 text-violet-900">

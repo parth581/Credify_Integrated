@@ -9,6 +9,8 @@
     "start": "next start"
   },
   "dependencies": {
+    "@emailjs/browser": "^4.4.1",
+    "@google-cloud/text-to-speech": "^6.4.0",
     "@google/generative-ai": "^0.24.1",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "1.2.2",
@@ -40,11 +42,14 @@
     "@radix-ui/react-tooltip": "1.1.6",
     "@vercel/analytics": "latest",
     "autoprefixer": "^10.4.20",
+    "axios": "^1.13.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",
     "date-fns": "4.1.0",
+    "emailjs": "^5.0.0",
     "embla-carousel-react": "8.5.1",
+    "firebase": "^12.9.0",
     "geist": "latest",
     "input-otp": "1.4.1",
     "lucide-react": "^0.454.0",
