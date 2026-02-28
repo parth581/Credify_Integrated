@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -9,70 +9,95 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
-import { toast } from "sonner"
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
 
-export function NewLoanDialog() {
-  const [isBusinessLoan, setIsBusinessLoan] = useState(false)
-  const [amount, setAmount] = useState("")
-  const [purpose, setPurpose] = useState("")
-  const [duration, setDuration] = useState("")
-  const [category, setCategory] = useState("")
-  const [rate, setRate] = useState("")
+interface NewLoanDialogProps {
+  onLoanSubmitted?: () => void; // 🔥 callback to refresh UI
+}
 
-  const [loans, setLoans] = useState<any[]>([])
+export function NewLoanDialog({ onLoanSubmitted }: NewLoanDialogProps) {
+  const [open, setOpen] = useState(false); // 🔥 added
 
-  // Load existing loans from localStorage on mount
+  const [isBusinessLoan, setIsBusinessLoan] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [purpose, setPurpose] = useState("");
+  const [duration, setDuration] = useState("");
+  const [category, setCategory] = useState("");
+  const [rate, setRate] = useState("");
+
+  const [loans, setLoans] = useState<any[]>([]);
+
   useEffect(() => {
-    const saved = localStorage.getItem("loanApplications")
-    if (saved) setLoans(JSON.parse(saved))
-  }, [])
+    const saved = localStorage.getItem("loanApplications");
+    if (saved) setLoans(JSON.parse(saved));
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
-    if (!amount || !purpose || !duration || !rate || (isBusinessLoan && !category)) {
-      toast?.error("Please fill all required fields.")
-      return
+    if (
+      !amount ||
+      !purpose ||
+      !duration ||
+      !rate ||
+      (isBusinessLoan && !category)
+    ) {
+      toast.error("Please fill all required fields.");
+      return;
     }
 
     const newLoan = {
-      id: Date.now(), // unique ID for loan
+      id: Date.now(),
       amount: parseFloat(amount),
       purpose,
-      duration,
+      duration: parseInt(duration),
       rate: parseFloat(rate),
       isBusinessLoan,
       category: isBusinessLoan ? category : "Private",
-      bids: [], // empty array to store future bids dynamically
+      bids: [],
       status: "Open",
       createdAt: new Date().toISOString(),
-    }
+    };
 
-    const updatedLoans = [...loans, newLoan]
-    setLoans(updatedLoans)
-    localStorage.setItem("loanApplications", JSON.stringify(updatedLoans))
+    const updatedLoans = [...loans, newLoan];
 
-    toast?.success("Loan application submitted successfully!")
+    setLoans(updatedLoans);
+    localStorage.setItem("loanApplications", JSON.stringify(updatedLoans));
+
+    toast.success("Loan request submitted successfully ✅");
+
+    // 🔥 Notify parent (Overview) to refresh UI
+    onLoanSubmitted?.();
 
     // Reset fields
-    setAmount("")
-    setPurpose("")
-    setDuration("")
-    setRate("")
-    setCategory("")
-    setIsBusinessLoan(false)
-  }
+    setAmount("");
+    setPurpose("");
+    setDuration("");
+    setRate("");
+    setCategory("");
+    setIsBusinessLoan(false);
+
+    // 🔥 Close dialog
+    setOpen(false);
+  };
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline">+ Apply for a New Loan</Button>
       </DialogTrigger>
+
       <DialogContent>
         <DialogHeader>
           <DialogTitle>New Loan Application</DialogTitle>
@@ -84,7 +109,6 @@ export function NewLoanDialog() {
             <Input
               id="amount"
               type="number"
-              inputMode="numeric"
               placeholder="e.g., 5000"
               min={0}
               step="1"
@@ -95,7 +119,12 @@ export function NewLoanDialog() {
 
           <div className="grid gap-2">
             <Label htmlFor="purpose">Purpose</Label>
-            <Input id="purpose" placeholder="e.g., Business expansion" value={purpose} onChange={(e) => setPurpose(e.target.value)} />
+            <Input
+              id="purpose"
+              placeholder="e.g., Business expansion"
+              value={purpose}
+              onChange={(e) => setPurpose(e.target.value)}
+            />
           </div>
 
           <div className="grid gap-2">
@@ -116,9 +145,24 @@ export function NewLoanDialog() {
           <div className="flex items-center justify-between">
             <Label>Private / Business Loan</Label>
             <div className="flex items-center gap-2">
-              <span className={!isBusinessLoan ? "font-medium" : "text-muted-foreground"}>Private</span>
-              <Switch checked={isBusinessLoan} onCheckedChange={setIsBusinessLoan} />
-              <span className={isBusinessLoan ? "font-medium" : "text-muted-foreground"}>Business</span>
+              <span
+                className={
+                  !isBusinessLoan ? "font-medium" : "text-muted-foreground"
+                }
+              >
+                Private
+              </span>
+              <Switch
+                checked={isBusinessLoan}
+                onCheckedChange={setIsBusinessLoan}
+              />
+              <span
+                className={
+                  isBusinessLoan ? "font-medium" : "text-muted-foreground"
+                }
+              >
+                Business
+              </span>
             </div>
           </div>
 
@@ -132,16 +176,8 @@ export function NewLoanDialog() {
                 <SelectContent>
                   <SelectItem value="medical">Medical</SelectItem>
                   <SelectItem value="schools">Schools</SelectItem>
-                  <SelectItem value="colleges">Colleges</SelectItem>
-                  <SelectItem value="hospitals">Hospitals</SelectItem>
-                  <SelectItem value="saloons">Saloons</SelectItem>
-                  <SelectItem value="grocery">Grocery Stores</SelectItem>
                   <SelectItem value="restaurants">Restaurants</SelectItem>
-                  <SelectItem value="garments">Garment Shops</SelectItem>
-                  <SelectItem value="electronics">Electronics Stores</SelectItem>
-                  <SelectItem value="pharmacy">Pharmacy</SelectItem>
-                  <SelectItem value="stationery">Stationery Shops</SelectItem>
-                  <SelectItem value="cafes">Cafés</SelectItem>
+                  <SelectItem value="grocery">Grocery Stores</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -152,7 +188,6 @@ export function NewLoanDialog() {
             <Input
               id="rate"
               type="number"
-              inputMode="decimal"
               placeholder="e.g., 12"
               min={0}
               step="0.01"
@@ -162,12 +197,15 @@ export function NewLoanDialog() {
           </div>
 
           <DialogFooter>
-            <Button type="submit" className="bg-primary text-primary-foreground hover:opacity-90">
+            <Button
+              type="submit"
+              className="bg-primary text-primary-foreground hover:opacity-90"
+            >
               Submit
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
