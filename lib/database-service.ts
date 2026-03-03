@@ -1,6 +1,7 @@
 import { 
   collection, 
   doc, 
+  setDoc,
   addDoc, 
   updateDoc, 
   getDoc, 
@@ -76,18 +77,34 @@ export const borrowerService = {
   // Create borrower profile
   async createBorrowerProfile(userData: Partial<BorrowerData>) {
     try {
-      const borrowerRef = await addDoc(collection(db, 'borrowers'), {
-        ...userData,
-        kycCompleted: false,
-        paymentHistory: [],
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      })
-      
-      return {
-        success: true,
-        id: borrowerRef.id,
-        message: 'Borrower profile created successfully'
+      // use uid as document id when available to simplify lookups
+      if (userData.uid) {
+        const borrowerRef = doc(db, 'borrowers', userData.uid)
+        await setDoc(borrowerRef, {
+          ...userData,
+          kycCompleted: false,
+          paymentHistory: [],
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        })
+        return {
+          success: true,
+          id: userData.uid,
+          message: 'Borrower profile created successfully'
+        }
+      } else {
+        const borrowerRef = await addDoc(collection(db, 'borrowers'), {
+          ...userData,
+          kycCompleted: false,
+          paymentHistory: [],
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        })
+        return {
+          success: true,
+          id: borrowerRef.id,
+          message: 'Borrower profile created successfully'
+        }
       }
     } catch (error: any) {
       return {
@@ -101,12 +118,28 @@ export const borrowerService = {
   // Update borrower profile
   async updateBorrowerProfile(uid: string, updates: Partial<BorrowerData>) {
     try {
-      const borrowerRef = doc(db, 'borrowers', uid)
+      // first try treat uid as document ID
+      let borrowerRef = doc(db, 'borrowers', uid)
+      let borrowerSnap = await getDoc(borrowerRef)
+      if (!borrowerSnap.exists()) {
+        // fallback: search by field uid (auth UID)
+        const borrowersRef = collection(db, 'borrowers')
+        const q = query(borrowersRef, where('uid', '==', uid))
+        const querySnapshot = await getDocs(q)
+        if (!querySnapshot.empty) {
+          borrowerRef = querySnapshot.docs[0].ref
+        } else {
+          // still not found, nothing to update
+          return {
+            success: false,
+            message: 'Borrower profile not found to update'
+          }
+        }
+      }
       await updateDoc(borrowerRef, {
         ...updates,
         updatedAt: serverTimestamp()
       })
-      
       return {
         success: true,
         message: 'Borrower profile updated successfully'

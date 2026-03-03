@@ -64,9 +64,7 @@ export default function BorrowerLoginPage() {
   // ✅ Sign In Logic with Firebase and KYC
   const signIn = async () => {
     // Prevent double submission
-    if (isSendingOtp) {
-      return
-    }
+    if (isSendingOtp) return
 
     const emailValid = /^(?:[a-zA-Z0-9_'^&\+`{}~!-]+(?:\.[a-zA-Z0-9_'^&\+`{}~!-]+)*|\"(?:[^\"\\]|\\.)+\")@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$/.test(
       email.trim(),
@@ -74,76 +72,75 @@ export default function BorrowerLoginPage() {
     const passwordValid = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(password)
 
     if (!emailValid) {
-      alert("Please enter a valid email address.")
+      alert('Please enter a valid email address.')
       return
     }
     if (!passwordValid) {
-      alert(
-        "Password must be at least 8 characters and include uppercase, lowercase, number, and special character."
-      )
+      alert('Password must be at least 8 characters and include uppercase, lowercase, number, and special character.')
       return
     }
 
     try {
       // Try to sign in with Firebase first
       const result = await authService.signIn(email, password)
-      
+
       if (result.success) {
         // Send OTP after successful authentication
         setIsSendingOtp(true)
         const otpResult = await otpService.sendLoginOtp(email, 'borrower')
         setIsSendingOtp(false)
-        
+
         if (otpResult.success) {
           setOtpStep(true)
           alert(`OTP sent to ${email}\nPlease check your inbox and enter the 6-digit code.`)
         } else {
           alert(`Failed to send OTP: ${otpResult.message}`)
         }
-      } else {
-        // Sign in failed - try to register a new account
-        if (result.error?.includes('user-not-found') || result.error?.includes('invalid-credential')) {
-          try {
-            const registerResult = await authService.register(email, password, "borrower", "Parth")
-            
-            if (registerResult.success) {
-              // Send OTP after successful registration
-              setIsSendingOtp(true)
-              const otpResult = await otpService.sendLoginOtp(email, 'borrower')
-              setIsSendingOtp(false)
-              
-              if (otpResult.success) {
-                setOtpStep(true)
-                alert(`OTP sent to ${email}\nPlease check your inbox and enter the 6-digit code.`)
-              } else {
-                alert(`Failed to send OTP: ${otpResult.message}`)
-              }
-            } else {
-              // Handle specific registration errors
-              if (registerResult.error?.includes('email-already-in-use')) {
-                alert("❌ This email is already registered. Please use a different email address or try logging in.")
-              } else {
-                alert(`❌ Registration failed: ${registerResult.error}`)
-              }
-            }
-          } catch (registerError) {
-            console.error("Registration error:", registerError)
-            alert("❌ Registration failed. Please try again.")
+
+        return
+      }
+
+      // Sign in failed - try to register a new account if it's a not-found error
+      if (result.error?.includes('user-not-found') || result.error?.includes('invalid-credential')) {
+        const registerResult = await authService.register(email, password, 'borrower', 'Parth')
+
+        if (registerResult.success) {
+          // Send OTP after successful registration
+          setIsSendingOtp(true)
+          const otpResult = await otpService.sendLoginOtp(email, 'borrower')
+          setIsSendingOtp(false)
+
+          if (otpResult.success) {
+            setOtpStep(true)
+            alert(`OTP sent to ${email}\nPlease check your inbox and enter the 6-digit code.`)
+          } else {
+            alert(`Failed to send OTP: ${otpResult.message}`)
           }
         } else {
-          // Other sign in errors
-          if (result.error?.includes('wrong-password')) {
-            alert("❌ Incorrect password. Please try again.")
-          } else if (result.error?.includes('invalid-email')) {
-            alert("❌ Invalid email format. Please check your email.")
+          // Handle specific registration errors
+          if (registerResult.error?.includes('email-already-in-use')) {
+            alert("❌ This email is already registered. Please sign in or use 'Forgot Password' to reset your password.")
           } else {
-            alert(`❌ Login failed: ${result.error}`)
+            console.error('Registration failed:', registerResult.error)
+            alert('❌ Registration failed. Please try again or contact support.')
           }
         }
+
+        return
+      }
+
+      // Other sign in errors
+      if (result.error?.includes('wrong-password')) {
+        alert("❌ Incorrect password. Please enter the correct password, or use 'Forgot Password' to reset it.")
+      } else if (result.error?.includes('invalid-email')) {
+        alert('❌ Invalid email format. Please check your email address and try again.')
+      } else {
+        console.error('Login failed:', result.error)
+        alert("❌ Login failed. Please check your credentials and try again, or use 'Forgot Password' if needed.")
       }
     } catch (error) {
-      console.error("Authentication error:", error)
-      alert("❌ Authentication failed. Please try again.")
+      console.error('Authentication error:', error)
+      alert('❌ Authentication failed. Please try again.')
     }
   }
 
@@ -203,7 +200,7 @@ export default function BorrowerLoginPage() {
             alert(`✅ Login successful! Welcome back, Parth!`)
             router.push("/borrower")
           } else {
-            alert("✅ Profile linked! Please complete KYC verification.")
+            alert("✅ Login successful! Please complete KYC verification.")
             setKycInProgress(true)
           }
         } else {
@@ -371,8 +368,6 @@ export default function BorrowerLoginPage() {
         
         localStorage.setItem(`kyc:${role}:${email}`, "true");
         setHasKyc(true);
-        setKycInProgress(false);
-        
         // Clean up extracted face image (temporary storage)
         setExtractedAadhaarFace(null);
       
@@ -381,29 +376,29 @@ export default function BorrowerLoginPage() {
           const currentUser = authService.getCurrentUser();
           if (currentUser) {
             console.log("Updating KYC status for user:", currentUser.uid);
-            const updateResult = await borrowerService.updateBorrowerProfile(currentUser.uid, {
-              kycCompleted: true
-            });
-            
-            if (updateResult.success) {
-              console.log("✅ KYC status updated in Firebase database");
+            // first attempt to find profile by email to handle older docs
+            const profileByEmail = await borrowerService.getBorrowerProfileByEmail(currentUser.email || "");
+            if (profileByEmail.success && profileByEmail.data) {
+              await borrowerService.updateBorrowerProfile(profileByEmail.data.uid, {
+                kycCompleted: true
+              });
             } else {
-              console.error("❌ Failed to update KYC status:", updateResult.message);
-              alert("⚠️ KYC verified but database update failed. Please contact support.");
+              // fallback to using uid directly
+              await borrowerService.updateBorrowerProfile(currentUser.uid, {
+                kycCompleted: true
+              });
             }
-          } else {
-            console.error("❌ No current user found for KYC update");
-            alert("⚠️ KYC verified but user session not found. Please try logging in again.");
+
+            console.log("✅ KYC status updated in Firebase database");
           }
         } catch (error) {
           console.error("❌ Failed to update KYC status in database:", error);
-          alert("⚠️ KYC verified but database update failed. Please contact support.");
         }
       
-        // Always redirect to dashboard after successful KYC verification
-        setTimeout(() => {
-          router.push("/borrower");
-        }, 1000); // Small delay to show success message
+        // Redirect to dashboard immediately after alert is dismissed
+        router.push("/borrower");
+        // clear KYC progress state after navigation in case component remains mounted briefly
+        setKycInProgress(false);
       } else {
         // Failed - show similarity percentage and helpful message
         alert(
@@ -417,11 +412,6 @@ export default function BorrowerLoginPage() {
       alert(`❌ Verification Error:\n${error.message || "An unexpected error occurred. Please try again later."}`);
       setIsVerifying(false);
       resetKycFlow();
-      useEffect(() => {
-        if (!kycInProgress) {
-          resetKycFlow()
-        }
-      }, [kycInProgress])
     }
   };
 
@@ -486,73 +476,75 @@ export default function BorrowerLoginPage() {
         <p className="text-sm text-muted-foreground">Login using your registered email and password</p>
       </div>
 
-      <Card className="transition-all duration-300 hover:shadow-lg hover:ring-1 hover:ring-primary/30">
-        <CardContent className="space-y-4 p-6">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="relative">
-                  <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top" align="start" className="max-w-xs text-xs">
-                Enter a valid email like name@example.com
-              </TooltipContent>
-            </Tooltip>
+      {!otpStep && !kycInProgress && (
+        <Card className="transition-all duration-300 hover:shadow-lg hover:ring-1 hover:ring-primary/30">
+          <CardContent className="space-y-4 p-6">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="start" className="max-w-xs text-xs">
+                  Enter a valid email like name@example.com
+                </TooltipContent>
+              </Tooltip>
 
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top" align="start" className="max-w-xs text-xs">
-                Password must be at least 8 characters and include uppercase, lowercase, number, and special character.
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="relative">
+                    <Lock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Password"
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" align="start" className="max-w-xs text-xs">
+                  Password must be at least 8 characters and include uppercase, lowercase, number, and special character.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
 
-          <Button
-            onClick={signIn}
-            disabled={isSendingOtp}
-            className="w-full bg-primary text-primary-foreground transition-transform duration-200 hover:scale-[1.01]"
-          >
-            {isSendingOtp ? "Sending OTP..." : "Sign In"}
-          </Button>
-
-          <div className="text-center">
-            <button 
-              onClick={() => setShowForgotPassword(true)}
-              className="text-sm text-muted-foreground hover:text-primary underline"
+            <Button
+              onClick={signIn}
+              disabled={isSendingOtp}
+              className="w-full bg-primary text-primary-foreground transition-transform duration-200 hover:scale-[1.01]"
             >
-              Forgot Password?
-            </button>
-          </div>
+              {isSendingOtp ? "Sending OTP..." : "Sign In"}
+            </Button>
 
-          {!hasKyc && (
-            <div className="text-xs text-muted-foreground text-center">
-              KYC verification is required once after your first login.
+            <div className="text-center">
+              <button 
+                onClick={() => setShowForgotPassword(true)}
+                className="text-sm text-muted-foreground hover:text-primary underline"
+              >
+                Forgot Password?
+              </button>
             </div>
-          )}
-        </CardContent>
-      </Card>
+
+            {!hasKyc && (
+              <div className="text-xs text-muted-foreground text-center">
+                KYC verification is required once after your first login.
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* ✅ Forgot Password Modal */}
-      {showForgotPassword && (
+      {showForgotPassword && !otpStep && !kycInProgress && (
         <Card className="transition-all duration-300 hover:shadow-lg hover:ring-1 hover:ring-primary/30">
           <CardContent className="space-y-4 p-6">
             <div className="text-center">
@@ -731,7 +723,7 @@ export default function BorrowerLoginPage() {
       )}
 
       {/* ✅ OTP Step */}
-      {otpStep && (
+      {otpStep && !kycInProgress && (
         <Card className="transition-all duration-300 hover:shadow-lg hover:ring-1 hover:ring-primary/30">
           <CardContent className="space-y-4 p-6">
             <div className="text-center">
