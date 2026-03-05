@@ -266,7 +266,7 @@ function Settings() {
           setLat(position.coords.latitude.toString());
           setLon(position.coords.longitude.toString());
         },
-        (err) => console.error("Geolocation error:", err)
+        (err) => console.error("Geolocation error:", err),
       );
     }
   }, []);
@@ -358,7 +358,7 @@ function Settings() {
         </CardHeader>
 
         <CardContent className="space-y-5">
-          {/* INPUT SECTION (unchanged logic) */}
+          {/* INPUT SECTION */}
           <div className="grid grid-cols-2 gap-2">
             <Input placeholder="Latitude" value={lat} disabled />
             <Input placeholder="Longitude" value={lon} disabled />
@@ -403,10 +403,10 @@ function Settings() {
             {loading ? "⚡ AI Calculating..." : "🚀 Calculate Credify Score"}
           </Button>
 
-          {/* ---------------- SCORE DISPLAY ---------------- */}
+          {/* SCORE DISPLAY */}
           {credifyData && (
             <div className="mt-6 space-y-6">
-              {/* FINAL SCORE CIRCLE */}
+              {/* FINAL SCORE */}
               <div className="flex justify-center">
                 <div className="relative w-40 h-40 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white shadow-2xl">
                   <div className="text-center">
@@ -420,7 +420,7 @@ function Settings() {
                 </div>
               </div>
 
-              {/* INDIVIDUAL SCORES */}
+              {/* SCORE CARDS */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Competitor */}
                 <div className="p-4 rounded-xl bg-red-50 border border-red-200 shadow-sm">
@@ -442,12 +442,29 @@ function Settings() {
                     />
                   </div>
 
-                  <details className="mt-3 text-xs text-gray-600">
-                    <summary className="cursor-pointer font-medium">
-                      View Analysis
-                    </summary>
-                    <p className="mt-2">{credifyData.competitorReason}</p>
-                  </details>
+                  {/* Insights */}
+                  <div className="mt-3 text-xs">
+                    <p className="font-semibold mb-1">Insights</p>
+                    <ul className="list-disc ml-4">
+                      {credifyData.competitorInsights?.map(
+                        (i: string, idx: number) => (
+                          <li key={idx}>{i}</li>
+                        ),
+                      )}
+                    </ul>
+                  </div>
+
+                  {/* Suggestions */}
+                  <div className="mt-2 text-xs">
+                    <p className="font-semibold mb-1">Suggestions</p>
+                    <ul className="list-disc ml-4">
+                      {credifyData.competitorSuggestions?.map(
+                        (s: string, idx: number) => (
+                          <li key={idx}>{s}</li>
+                        ),
+                      )}
+                    </ul>
+                  </div>
                 </div>
 
                 {/* Personal */}
@@ -470,12 +487,27 @@ function Settings() {
                     />
                   </div>
 
-                  <details className="mt-3 text-xs text-gray-600">
-                    <summary className="cursor-pointer font-medium">
-                      View Analysis
-                    </summary>
-                    <p className="mt-2">{credifyData.personalReason}</p>
-                  </details>
+                  <div className="mt-3 text-xs">
+                    <p className="font-semibold mb-1">Insights</p>
+                    <ul className="list-disc ml-4">
+                      {credifyData.personalInsights?.map(
+                        (i: string, idx: number) => (
+                          <li key={idx}>{i}</li>
+                        ),
+                      )}
+                    </ul>
+                  </div>
+
+                  <div className="mt-2 text-xs">
+                    <p className="font-semibold mb-1">Suggestions</p>
+                    <ul className="list-disc ml-4">
+                      {credifyData.personalSuggestions?.map(
+                        (s: string, idx: number) => (
+                          <li key={idx}>{s}</li>
+                        ),
+                      )}
+                    </ul>
+                  </div>
                 </div>
 
                 {/* Sector */}
@@ -498,17 +530,10 @@ function Settings() {
                     />
                   </div>
 
-                  <div className="mt-3 text-xs text-gray-600 space-y-1">
-                    <p>Sector: {credifyData.sectorScore.sector}</p>
-                    <p>YoY Growth: {credifyData.sectorScore.yoy}%</p>
+                  <div className="mt-3 text-xs text-gray-600">
+                    Sector: {credifyData.sectorScore.sector}
                   </div>
                 </div>
-              </div>
-
-              {/* SUMMARY */}
-              <div className="p-4 bg-muted rounded-lg border">
-                <h4 className="font-semibold mb-2">🧠 AI Summary</h4>
-                <p className="text-sm text-gray-700">{credifyData.summary}</p>
               </div>
             </div>
           )}
@@ -527,8 +552,8 @@ export default function BorrowerDashboard() {
     tab === "payments"
       ? "Payments"
       : tab === "settings"
-      ? "Settings"
-      : "Overview";
+        ? "Settings"
+        : "Overview";
 
   return (
     <div className="theme-borrower">
