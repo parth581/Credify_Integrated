@@ -244,11 +244,78 @@ function Payments() {
 
 // -------------------- Settings Component --------------------
 function Settings() {
+  // Profile form
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
 
+  // CredifyScore form
+  const [lat, setLat] = useState("");
+  const [lon, setLon] = useState("");
+  const [category, setCategory] = useState("medical");
+  const [sector, setSector] = useState("Healthcare");
+  const [loading, setLoading] = useState(false);
+  const [credifyScore, setCredifyScore] = useState<number | null>(null);
+  const [credifyData, setCredifyData] = useState<any>(null);
+  const [error, setError] = useState("");
+
+  // Get browser location automatically
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLat(position.coords.latitude.toString());
+          setLon(position.coords.longitude.toString());
+        },
+        (err) => console.error("Geolocation error:", err)
+      );
+    }
+  }, []);
+
+  // Submit CredifyScore request
+  const handleSubmitScore = async () => {
+    if (!lat || !lon || !category || !sector) {
+      setError("Please provide all fields");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("http://localhost:7000/api/credify-score", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lat,
+          lon,
+          category,
+          sectorName: sector,
+        }),
+      });
+
+      const data = await response.json();
+      console.log("API RESPONSE:", data);
+
+      if (!response.ok) {
+        throw new Error(data.error || "Server error");
+      }
+
+      // ✅ IMPORTANT FIX
+      const result = data.data;
+
+      setCredifyData(result); // 🔥 THIS WAS MISSING
+      setCredifyScore(result.finalCredifyScore);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <section className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      {/* Profile Card */}
       <Card>
         <CardHeader>
           <CardTitle>Profile</CardTitle>
@@ -265,7 +332,186 @@ function Settings() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <Button>Save</Button>
+          <Button className="bg-primary text-primary-foreground">Save</Button>
+        </CardContent>
+      </Card>
+
+      {/* Notifications Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Notifications</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="text-sm text-muted-foreground">
+            Receive EMI reminders and receipts.
+          </div>
+          <Button variant="outline">Update Preferences</Button>
+        </CardContent>
+      </Card>
+
+      {/* CredifyScore Card */}
+      <Card className="md:col-span-2 shadow-xl border-2 border-primary/20">
+        <CardHeader>
+          <CardTitle className="text-xl font-bold">
+            🎯 Credify AI Risk Engine
+          </CardTitle>
+        </CardHeader>
+
+        <CardContent className="space-y-5">
+          {/* INPUT SECTION (unchanged logic) */}
+          <div className="grid grid-cols-2 gap-2">
+            <Input placeholder="Latitude" value={lat} disabled />
+            <Input placeholder="Longitude" value={lon} disabled />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Category</label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+            >
+              <option value="medical">Medical</option>
+              <option value="restaurant">Restaurant</option>
+              <option value="pharmacy">Pharmacy</option>
+              <option value="clothing_store">Clothing Store</option>
+              <option value="bank">Bank</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Sector</label>
+            <select
+              value={sector}
+              onChange={(e) => setSector(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+            >
+              <option value="Healthcare">Healthcare</option>
+              <option value="Retail">Retail</option>
+              <option value="Finance">Finance</option>
+              <option value="Hospitality">Hospitality</option>
+            </select>
+          </div>
+
+          {error && <p className="text-red-500">{error}</p>}
+
+          <Button
+            onClick={handleSubmitScore}
+            disabled={loading}
+            className="w-full"
+          >
+            {loading ? "⚡ AI Calculating..." : "🚀 Calculate Credify Score"}
+          </Button>
+
+          {/* ---------------- SCORE DISPLAY ---------------- */}
+          {credifyData && (
+            <div className="mt-6 space-y-6">
+              {/* FINAL SCORE CIRCLE */}
+              <div className="flex justify-center">
+                <div className="relative w-40 h-40 rounded-full bg-gradient-to-br from-primary to-purple-600 flex items-center justify-center text-white shadow-2xl">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold">
+                      {credifyData.finalCredifyScore}
+                    </div>
+                    <div className="text-xs uppercase tracking-wider">
+                      Credify Score
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* INDIVIDUAL SCORES */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Competitor */}
+                <div className="p-4 rounded-xl bg-red-50 border border-red-200 shadow-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-red-600">
+                      🏪 Competitor
+                    </span>
+                    <span className="text-lg font-bold">
+                      {credifyData.competitorScore}/35
+                    </span>
+                  </div>
+
+                  <div className="mt-2 h-2 bg-red-200 rounded-full">
+                    <div
+                      className="h-2 bg-red-500 rounded-full transition-all duration-700"
+                      style={{
+                        width: `${(credifyData.competitorScore / 35) * 100}%`,
+                      }}
+                    />
+                  </div>
+
+                  <details className="mt-3 text-xs text-gray-600">
+                    <summary className="cursor-pointer font-medium">
+                      View Analysis
+                    </summary>
+                    <p className="mt-2">{credifyData.competitorReason}</p>
+                  </details>
+                </div>
+
+                {/* Personal */}
+                <div className="p-4 rounded-xl bg-green-50 border border-green-200 shadow-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-green-600">
+                      💳 Personal
+                    </span>
+                    <span className="text-lg font-bold">
+                      {credifyData.personalScore}/35
+                    </span>
+                  </div>
+
+                  <div className="mt-2 h-2 bg-green-200 rounded-full">
+                    <div
+                      className="h-2 bg-green-500 rounded-full transition-all duration-700"
+                      style={{
+                        width: `${(credifyData.personalScore / 35) * 100}%`,
+                      }}
+                    />
+                  </div>
+
+                  <details className="mt-3 text-xs text-gray-600">
+                    <summary className="cursor-pointer font-medium">
+                      View Analysis
+                    </summary>
+                    <p className="mt-2">{credifyData.personalReason}</p>
+                  </details>
+                </div>
+
+                {/* Sector */}
+                <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 shadow-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="font-semibold text-blue-600">
+                      📈 Sector
+                    </span>
+                    <span className="text-lg font-bold">
+                      {credifyData.sectorScore.score}/30
+                    </span>
+                  </div>
+
+                  <div className="mt-2 h-2 bg-blue-200 rounded-full">
+                    <div
+                      className="h-2 bg-blue-500 rounded-full transition-all duration-700"
+                      style={{
+                        width: `${(credifyData.sectorScore.score / 30) * 100}%`,
+                      }}
+                    />
+                  </div>
+
+                  <div className="mt-3 text-xs text-gray-600 space-y-1">
+                    <p>Sector: {credifyData.sectorScore.sector}</p>
+                    <p>YoY Growth: {credifyData.sectorScore.yoy}%</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* SUMMARY */}
+              <div className="p-4 bg-muted rounded-lg border">
+                <h4 className="font-semibold mb-2">🧠 AI Summary</h4>
+                <p className="text-sm text-gray-700">{credifyData.summary}</p>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </section>
