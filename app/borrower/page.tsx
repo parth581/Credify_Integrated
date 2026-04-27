@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import ChatBot from "@/components/assistant/ChatBot";
 import {
   LineChart,
@@ -20,6 +21,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
+import { UploadCloudIcon, FileTextIcon, XIcon } from "lucide-react";
 
 interface Loan {
   id: number;
@@ -257,6 +259,8 @@ function Settings() {
   const [credifyScore, setCredifyScore] = useState<number | null>(null);
   const [credifyData, setCredifyData] = useState<any>(null);
   const [error, setError] = useState("");
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   // Get browser location automatically
   useEffect(() => {
@@ -271,10 +275,34 @@ function Settings() {
     }
   }, []);
 
+  const handlePickPdf = (file: File | null) => {
+    if (!file) {
+      setPdfFile(null);
+      return;
+    }
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setError("Please upload a valid PDF file");
+      setPdfFile(null);
+      return;
+    }
+    // 10MB soft limit (can be increased if needed)
+    if (file.size > 10 * 1024 * 1024) {
+      setError("PDF is too large (max 10MB)");
+      setPdfFile(null);
+      return;
+    }
+    setError("");
+    setPdfFile(file);
+  };
+
   // Submit CredifyScore request
   const handleSubmitScore = async () => {
     if (!lat || !lon || !category || !sector) {
       setError("Please provide all fields");
+      return;
+    }
+    if (!pdfFile) {
+      setError("Please upload a bank statement PDF");
       return;
     }
 
@@ -282,15 +310,17 @@ function Settings() {
     setError("");
 
     try {
-      const response = await fetch("http://localhost:7000/api/credify-score", {
+      const form = new FormData();
+      form.append("lat", lat);
+      form.append("lon", lon);
+      form.append("category", category);
+      form.append("sectorName", sector);
+      form.append("pdf", pdfFile, pdfFile.name);
+
+      // Send multipart to our Next.js API, which forwards JSON+pdfPath to Orchestrator
+      const response = await fetch("/api/credify-score", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lat,
-          lon,
-          category,
-          sectorName: sector,
-        }),
+        body: form,
       });
 
       const data = await response.json();
@@ -393,6 +423,85 @@ function Settings() {
             </select>
           </div>
 
+          {/* PDF Upload */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Bank statement (PDF)</label>
+            <div
+              onDragEnter={() => setIsDragOver(true)}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragOver(true);
+              }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsDragOver(false);
+                const f = e.dataTransfer.files?.[0] ?? null;
+                handlePickPdf(f);
+              }}
+              className={[
+                "group relative overflow-hidden rounded-xl border border-primary/15 bg-gradient-to-br from-primary/5 to-purple-500/5 p-4 transition-all",
+                "hover:shadow-md hover:ring-1 hover:ring-primary/25",
+                isDragOver ? "ring-2 ring-primary/40 shadow-lg scale-[1.01]" : "",
+              ].join(" ")}
+            >
+              <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-primary/10 blur-2xl transition-all group-hover:bg-primary/15" />
+
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="grid size-10 place-items-center rounded-lg bg-primary text-primary-foreground shadow-sm transition-transform group-hover:scale-105">
+                    <UploadCloudIcon className="size-5" />
+                  </div>
+                  <div className="space-y-0.5">
+                    <div className="text-sm font-semibold">
+                      {pdfFile ? "PDF selected" : "Upload a PDF"}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Drag & drop here or choose a file (max 10MB)
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {pdfFile ? (
+                    <button
+                      type="button"
+                      onClick={() => handlePickPdf(null)}
+                      className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-1 text-xs transition hover:bg-accent"
+                    >
+                      <XIcon className="size-3.5" />
+                      Remove
+                    </button>
+                  ) : null}
+
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-primary px-3 py-2 text-xs font-medium text-primary-foreground shadow-sm transition hover:bg-primary/90">
+                    <input
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      className="hidden"
+                      onChange={(e) => handlePickPdf(e.target.files?.[0] ?? null)}
+                    />
+                    <FileTextIcon className="size-4" />
+                    Choose PDF
+                  </label>
+                </div>
+              </div>
+
+              {pdfFile ? (
+                <div className="mt-3 flex items-center justify-between rounded-lg border bg-background/60 px-3 py-2 text-xs">
+                  <div className="truncate">
+                    <span className="font-medium">{pdfFile.name}</span>
+                    <span className="text-muted-foreground">
+                      {" "}
+                      • {(pdfFile.size / (1024 * 1024)).toFixed(2)} MB
+                    </span>
+                  </div>
+                  <div className="text-muted-foreground">Ready</div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
           {error && <p className="text-red-500">{error}</p>}
 
           <Button
@@ -400,7 +509,14 @@ function Settings() {
             disabled={loading}
             className="w-full"
           >
-            {loading ? "⚡ AI Calculating..." : "🚀 Calculate Credify Score"}
+            {loading ? (
+              <>
+                <Spinner className="text-primary-foreground" />
+                Uploading & calculating...
+              </>
+            ) : (
+              "🚀 Calculate Credify Score"
+            )}
           </Button>
 
           {/* SCORE DISPLAY */}

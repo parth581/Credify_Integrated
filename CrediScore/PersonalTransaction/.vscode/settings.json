@@ -1,0 +1,8 @@
+{
+  // Ensure Pylance resolves imports from this module's venv
+  "python.defaultInterpreterPath": "${workspaceFolder}/CrediScore/PersonalTransaction/venv/Scripts/python.exe",
+  "python.analysis.extraPaths": ["${workspaceFolder}/CrediScore/PersonalTransaction"],
+  "python.analysis.venvPath": "${workspaceFolder}/CrediScore/PersonalTransaction",
+  "python.analysis.venv": "venv"
+}
+

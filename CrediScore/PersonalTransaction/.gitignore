@@ -1,0 +1,12 @@
+.env
+
+# local virtualenv / python caches
+venv/
+__pycache__/
+*.pyc
+
+# sample/statement PDFs (keep them out of git)
+*.pdf
+
+# backup of previously nested git repo
+.git_backup_personaltransaction/
