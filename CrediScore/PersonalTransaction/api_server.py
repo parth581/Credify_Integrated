@@ -142,9 +142,10 @@ if __name__ == '__main__':
     # Check if HF_API_KEY is set
     if not os.getenv("HF_API_KEY"):
         print("WARNING: HF_API_KEY not set in environment variables")
-    
+
+    port = int(os.getenv("PORT", "5000"))
     app.run(
         host='0.0.0.0',
-        port=5000,
-        debug=True
+        port=port,
+        debug=False
     )
